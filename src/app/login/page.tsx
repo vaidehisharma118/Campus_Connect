@@ -28,9 +28,17 @@ export default function LoginPage() {
     }
 
     console.log("Logged in user:", data.user);
-    alert("Login successful!");
 
-    router.push("/dashboard");
+    // Route by role: admins land on the admin dashboard, students on
+    // the regular one. Middleware still enforces this server-side --
+    // this redirect is just so people land in the right place.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", data.user.id)
+      .single();
+
+    router.push(profile?.role === "admin" ? "/admin/dashboard" : "/dashboard");
   };
 
   return (
