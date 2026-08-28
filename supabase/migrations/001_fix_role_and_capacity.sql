@@ -1,5 +1,5 @@
 -- ============================================================
--- Fix 1: Stop users from self-assigning role = 'admin'
+--Stop users from self-assigning role = 'admin'
 -- ============================================================
 -- Even with the role dropdown removed from the UI, anyone can still
 -- call supabase.from("profiles").insert({..., role: "admin"}) directly
@@ -46,7 +46,7 @@ create policy "Users can read profiles"
   using (true);
 
 -- ============================================================
--- Fix 2: Atomic event registration (no more overbooking race)
+-- Atomic event registration (no more overbooking race)
 -- ============================================================
 -- Old flow: client reads registrations count, compares to capacity,
 -- THEN inserts. Two concurrent requests can both pass the check
@@ -91,3 +91,37 @@ end;
 $$;
 
 grant execute on function public.register_for_event(uuid, uuid) to authenticated;
+
+-- ============================================================
+--  Promote an existing student to admin (admin-only action)
+-- ============================================================
+-- Only an existing admin can promote someone else. The function checks
+-- the CALLER's own role (auth.uid()) server-side before touching the
+-- target row -- a student calling this directly, even by guessing the
+-- RPC name, gets rejected. This is the same "never trust the client,
+-- re-check on the server" pattern as register_for_event above.
+
+create or replace function public.promote_to_admin(p_target_id uuid)
+returns void
+language plpgsql
+security definer
+as $$
+declare
+  v_caller_role text;
+begin
+  select role into v_caller_role
+  from public.profiles
+  where id = auth.uid();
+
+  if v_caller_role is distinct from 'admin' then
+    raise exception 'Only admins can promote other users';
+  end if;
+
+  update public.profiles
+  set role = 'admin'
+  where id = p_target_id;
+end;
+$$;
+
+grant execute on function public.promote_to_admin(uuid) to authenticated;
+
