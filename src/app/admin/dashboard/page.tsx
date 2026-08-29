@@ -33,7 +33,12 @@ export default function AdminDashboard() {
       // ever reaching this route server-side, but if role somehow isn't
       // admin (e.g. stale client state), bounce to the student dashboard
       // instead of rendering admin-only content.
-      if (error || profileData?.role !== "admin") {
+      if (error) {
+     console.log(error.message);
+     return;
+     }
+      
+      if (profileData?.role !== "admin") {
         router.push("/dashboard");
         return;
       }
